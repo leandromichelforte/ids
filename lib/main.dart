@@ -12,6 +12,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      onGenerateRoute: (RouteSettings settings) {
+        var routes = <String, WidgetBuilder>{
+          Routes.homeRoute: (context) => HomeView(),
+          Routes.createEditRoute: (context) => CreateEditView(),
+        };
+        WidgetBuilder builder = routes[settings.name]!;
+        return MaterialPageRoute(builder: (ctx) => builder(ctx));
+      },
       title: 'IDS',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

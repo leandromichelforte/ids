@@ -4,11 +4,13 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:ids/models/constants_model.dart';
 import 'package:ids/models/people_model.dart';
 import 'package:ids/repositories/account_repository.dart';
+import 'package:ids/view-models/people_viewmodel.dart';
 import 'package:intl/intl.dart';
 import 'package:mask_input_formatter/mask_input_formatter.dart';
 
 class CreateEditView extends StatefulWidget {
-  CreateEditView({Key? key}) : super(key: key);
+  final PeopleViewModel? peopleArg;
+  CreateEditView({Key? key, this.peopleArg}) : super(key: key);
 
   @override
   _CreateEditViewState createState() => _CreateEditViewState();
@@ -16,10 +18,9 @@ class CreateEditView extends StatefulWidget {
 
 class _CreateEditViewState extends State<CreateEditView> {
   final _formKey = GlobalKey<FormState>();
-  String appBarTitle = "Novo";
   PeopleModel _people = PeopleModel();
   List<String> _genders = ["Masculino", "Feminino", "Indiferente"];
-  String dropDownValue = "Masculino";
+  String? dropDownValue;
   TextEditingController _birthDateController = TextEditingController();
   MaskInputFormatter dateMask = MaskInputFormatter(mask: '##/##/####');
   DateFormat dateFormatter = DateFormat('dd-MM-yyyy');
@@ -35,14 +36,14 @@ class _CreateEditViewState extends State<CreateEditView> {
               "Deseja realmente sair?",
               style: TextStyle(
                 color: Colors.blue[900],
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w900,
               ),
             ),
             content: Text(
               "Todas as informações não salvas serão perdidas.",
               style: TextStyle(
                 color: Colors.blue[900],
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w500,
               ),
             ),
             actions: [
@@ -75,10 +76,41 @@ class _CreateEditViewState extends State<CreateEditView> {
     return Future.value(true);
   }
 
+  // FUNÇÃO CRIAR/EDITAR
+  Future<void> _createEdit() async {
+    var function = widget.peopleArg == null
+        ? await _repository.createPeople(_people)
+        : await _repository.updatePeople(_people);
+    if (function != 0) {
+      Fluttertoast.showToast(msg: "${_people.name} salvo com sucesso");
+      Navigator.pushNamedAndRemoveUntil(
+          context, Routes.homeRoute, (route) => false);
+    } else {
+      Fluttertoast.showToast(msg: "Erro ao salvar");
+    }
+  }
+
+  // MOSTRAR CALENDÁRIO
+  Future<void> _showDatePicker() async {
+    showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    ).then((value) {
+      _birthDateController.text =
+          DateFormat('dd/MM/yyyy').format(value!).toString();
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _repository.db;
+    if (widget.peopleArg?.birthDate != null) {
+      _birthDateController.text =
+          DateFormat('dd/MM/yyyy').format(widget.peopleArg!.birthDate!);
+    }
   }
 
   @override
@@ -87,7 +119,7 @@ class _CreateEditViewState extends State<CreateEditView> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blue[900],
-        title: Text(appBarTitle),
+        title: Text(widget.peopleArg == null ? "Novo" : "Editar"),
         centerTitle: true,
         leading: IconButton(
           onPressed: () => _showCancelDialog(),
@@ -95,15 +127,6 @@ class _CreateEditViewState extends State<CreateEditView> {
             Icons.arrow_back,
           ),
         ),
-        actions: [
-          IconButton(
-            onPressed: () async {
-              print(await _repository.getId());
-              _people.printy();
-            },
-            icon: Icon(Icons.ac_unit),
-          ),
-        ],
       ),
       body: WillPopScope(
         onWillPop: _showCancelDialog,
@@ -120,15 +143,24 @@ class _CreateEditViewState extends State<CreateEditView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       TextFormField(
+                        keyboardType: TextInputType.text,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                              RegExp('[a-zA-Z\\s]'))
+                        ],
+                        initialValue: widget.peopleArg != null
+                            ? widget.peopleArg?.name
+                            : "",
                         maxLength: 70,
                         onSaved: (value) async {
-                          _people.id = await _repository.getId();
                           _people.name = value;
+                          _people.id = widget.peopleArg == null
+                              ? await _repository.getId()
+                              : widget.peopleArg?.id;
                         },
                         validator: (value) {
-                          if (value != null) if (value.isEmpty)
+                          if ([null, ""].contains(value))
                             return "Não pode ficar vazio";
-                          return null;
                         },
                         onEditingComplete: () => node.nextFocus(),
                         cursorColor: Colors.blue[900],
@@ -158,32 +190,37 @@ class _CreateEditViewState extends State<CreateEditView> {
                           _people.birthDate =
                               dateFormatter.parse(value!.replaceAll("/", "-"));
                         },
-                        onChanged: (value) {},
+                        onChanged: (value) {
+                          TextEditingController.fromValue(
+                            TextEditingValue(text: value),
+                          );
+                        },
                         validator: (value) {
+                          String? error;
                           if ([null, ""].contains(value)) {
-                            return "Não pode ficar vazio";
-                          } else if (value?.length != 10) {
-                            return "Insira uma data válida";
+                            error = "Não pode ficar vazio";
+                          } else if (value?.length != 10 ||
+                              int.parse(_birthDateController.text
+                                      .substring(0, 2)) >
+                                  31 ||
+                              int.parse(_birthDateController.text
+                                      .substring(3, 5)) >
+                                  12) {
+                            error = "Insira uma data válida";
+                          } else if (!dateFormatter
+                              .parse(_birthDateController.text
+                                  .replaceAll("/", "-"))
+                              .isBefore(DateTime.now())) {
+                            error =
+                                "A data de nascimento não pode ser maior que hoje";
                           }
+                          return error;
                         },
                         onEditingComplete: () => node.nextFocus(),
                         cursorColor: Colors.blue[900],
                         decoration: InputDecoration(
                           suffixIcon: IconButton(
-                            onPressed: () {
-                              showDatePicker(
-                                context: context,
-                                initialDate: DateTime.now(),
-                                firstDate: DateTime(1900),
-                                lastDate: DateTime.now(),
-                              ).then((value) {
-                                _birthDateController.text =
-                                    DateFormat('dd/MM/yyyy')
-                                        .format(value!)
-                                        .toString();
-                                print(DateFormat('dd/MM/yyyy').format(value));
-                              });
-                            },
+                            onPressed: _showDatePicker,
                             icon: Icon(
                               Icons.calendar_today_rounded,
                               size: 20,
@@ -207,11 +244,25 @@ class _CreateEditViewState extends State<CreateEditView> {
                         ),
                       ),
                       DropdownButtonFormField(
+                        validator: (value) {
+                          if ([null, ""].contains(value))
+                            return "Não pode ficar vazio";
+                        },
                         onSaved: (String? value) {
                           _people.gender = value;
                         },
                         decoration: InputDecoration(
                           border: InputBorder.none,
+                          focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.grey,
+                            ),
+                          ),
+                          errorBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.red,
+                            ),
+                          ),
                         ),
                         onChanged: (String? newValue) {
                           setState(() {
@@ -222,7 +273,13 @@ class _CreateEditViewState extends State<CreateEditView> {
                           Icons.arrow_downward_rounded,
                           size: 20,
                         ),
-                        value: dropDownValue,
+                        hint: Text(
+                          "Gênero",
+                          style: TextStyle(color: Colors.grey[400]),
+                        ),
+                        value: widget.peopleArg != null
+                            ? widget.peopleArg?.gender
+                            : null,
                         items: _genders
                             .map(
                               (e) => DropdownMenuItem<String>(
@@ -267,20 +324,7 @@ class _CreateEditViewState extends State<CreateEditView> {
                             onPressed: () async {
                               if (_formKey.currentState!.validate()) {
                                 _formKey.currentState?.save();
-                                _repository
-                                    .newPeople(_people)
-                                    .then((rowsAffected) {
-                                  if (rowsAffected == _people.id) {
-                                    Fluttertoast.showToast(
-                                        msg:
-                                            "${_people.name} salvo com sucesso");
-                                    Navigator.pushNamedAndRemoveUntil(context,
-                                        Routes.homeRoute, (route) => false);
-                                  } else {
-                                    Fluttertoast.showToast(
-                                        msg: "Erro ao salvar");
-                                  }
-                                });
+                                _createEdit();
                               }
                             },
                             child: Text("Salvar"),

@@ -24,10 +24,11 @@ class PeopleModel {
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['id'] = this.id;
-    data['name'] = this.name;
-    data['birth_Date'] = DateFormat('dd/MM/yyyy').format(this.birthDate!);
-    data['gender'] = this.gender;
+    data['ID'] = this.id;
+    data['NAME'] = this.name;
+    data['BIRTH_DATE'] =
+        DateFormat('dd/MM/yyyy').format(this.birthDate!).toString();
+    data['GENDER'] = this.gender;
     return data;
   }
 

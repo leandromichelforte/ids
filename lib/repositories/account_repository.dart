@@ -1,8 +1,7 @@
 import 'package:ids/models/people_model.dart';
+import 'package:ids/view-models/people_viewmodel.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
-
-final String productBasket = "productBasket";
 
 class AccountRepository {
   Database? _db;
@@ -30,7 +29,8 @@ class AccountRepository {
     List<PeopleModel> allPeoples = [];
 
     await db.then((database) async {
-      List qryResult = await database!.rawQuery("SELECT * FROM PEOPLES");
+      List qryResult =
+          await database!.rawQuery("SELECT * FROM PEOPLES ORDER BY ID DESC");
       for (var p in qryResult) {
         allPeoples.add(PeopleModel.fromJson(p));
       }
@@ -38,22 +38,33 @@ class AccountRepository {
     return allPeoples;
   }
 
-  Future<int?> newPeople(PeopleModel peopleModel) async {
-    int? rowsAffected = 0;
+  Future<int?> createPeople(PeopleModel peopleModel) async {
+    int? id = 0;
     await db.then((database) async {
       await database?.insert("PEOPLES", peopleModel.toJson()).then((value) {
-        print(value);
-        rowsAffected = value;
+        id = value;
       });
+    });
+    return id;
+  }
+
+  Future<int?> deletePeople(PeopleViewModel peopleViewModel) async {
+    int? rowsAffected = 0;
+    await db.then((database) async {
+      await database?.delete("PEOPLES", where: "id = ?", whereArgs: [
+        peopleViewModel.id
+      ]).then((value) => rowsAffected = value);
     });
     return rowsAffected;
   }
 
-  Future<int?> deletePeople(PeopleModel peopleModel) async {
-    return await db.then((database) async {
-      await database
-          ?.delete("PEOPLES", where: "id = ?", whereArgs: [peopleModel.id]);
+  Future<int?> updatePeople(PeopleModel peopleModel) async {
+    int? rowsAffected = 0;
+    await db.then((database) async {
+      rowsAffected = await database?.update("PEOPLES", peopleModel.toJson(),
+          where: "id = ?", whereArgs: [peopleModel.id]).then((value) {});
     });
+    return rowsAffected;
   }
 
   Future<int?> getId() async {
